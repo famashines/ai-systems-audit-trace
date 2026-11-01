@@ -336,6 +336,20 @@ test("the audit-trace MongoDB user can insert and find in audit, but not change 
   await unauthorized(() => entries.drop());
   await unauthorized(() => entries.createIndex({ type: 1 }, {}, undefined));
   await unauthorized(() => entries.dropIndex("eventId_1"));
+  const processed = serviceDb.collection<{ _id: string; eventId: string; type: string }>(
+    "processed",
+  );
+  await processed.insertOne({ _id: randomUUID(), eventId: first.eventId, type: "x.Y" });
+  await unauthorized(() =>
+    processed
+      .aggregate([
+        { $project: { _id: 0, eventId: 1, type: 1 } },
+        { $merge: { into: "audit", on: "eventId", whenMatched: "replace" } },
+      ])
+      .toArray(),
+  );
+  await unauthorized(() => processed.aggregate([{ $out: "audit" }]).toArray());
+  await unauthorized(() => processed.rename("audit", { dropTarget: true }));
   assert.deepEqual(await audit().findOne({ eventId: first.eventId }), before);
   assert.equal(await audit().countDocuments(), published.length);
   const indexes = await audit().indexes();
