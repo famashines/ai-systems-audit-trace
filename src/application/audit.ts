@@ -1,7 +1,7 @@
 import type { RegisteredEvent } from "@famashines/ai-systems-contracts";
 import { SpanStatusCode, type Tracer } from "@opentelemetry/api";
 import { MongoServerError, ObjectId, type Collection, type Db, type WithId } from "mongodb";
-import { fitPage, isAuditEntry, toEntry, type AuditEntry } from "../domain/audit.ts";
+import { isAuditEntry, pageBytes, toEntry, type AuditEntry } from "../domain/audit.ts";
 
 export const auditOf = (db: Db): Collection<AuditEntry> => db.collection<AuditEntry>("audit");
 
@@ -76,16 +76,29 @@ const toItem = ({ _id, recordedAt, ...entry }: WithId<AuditEntry>): AuditItem =>
   recordedAt: recordedAt.toISOString(),
 });
 
+export const readBatch = 10;
+
 export async function readPage(
   audit: Collection<AuditEntry>,
   query: { limit: number; before?: string | undefined },
+  limitBytes = pageBytes,
 ): Promise<AuditPage> {
   const filter = query.before === undefined ? {} : { _id: { $lt: new ObjectId(query.before) } };
-  const docs = await audit
+  const cursor = audit
     .find(filter)
     .sort({ _id: -1 })
     .limit(query.limit + 1)
-    .toArray();
-  const items = fitPage(docs.slice(0, query.limit).map(toItem));
-  return { items, next: items.length < docs.length ? (items.at(-1)?.id ?? null) : null };
+    .batchSize(readBatch);
+  const items: AuditItem[] = [];
+  let size = Buffer.byteLength(JSON.stringify({ items: [], next: null }));
+  for await (const doc of cursor) {
+    const item = toItem(doc);
+    const bytes = Buffer.byteLength(JSON.stringify(item)) + (items.length > 0 ? 1 : 0);
+    if (items.length === query.limit || (items.length > 0 && size + bytes > limitBytes)) {
+      return { items, next: items.at(-1)?.id ?? null };
+    }
+    size += bytes;
+    items.push(item);
+  }
+  return { items, next: null };
 }

@@ -36,7 +36,7 @@ An event is an audit entry when one of these is true:
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ORCHESTRATION` | `TaskSubmitted`, `MessageRefused`, `ClarificationRequested`, `ClarificationAnswered`, `PlanProposed`, `PlanEdited`, `PlanApproved`, `PlanRejected`, `TaskModeChanged`, `TaskCancelled`, `RunStarted`, `CheckpointOpened`, `CheckpointResolved`, `SteeringMessageAdded`, `SubtaskReassigned`, `SubtaskRetrying`, `SubtaskFailed`, `SubtaskBlocked`, `RunPaused`, `RunResumed`, `RunBlocked`, `RunCompleted`, `RunFailed`, `RunCancelled` |
 | `CONVERSATION`  | `ConversationStarted`, `OwnerMessagePosted`                                                                                                                                                                                                                                                                                                                                                                                             |
-| `BUDGET`        | `BudgetSet`, `ReservationRefused`, `ThresholdCrossed`                                                                                                                                                                                                                                                                                                                                                                                   |
+| `BUDGET`        | `BudgetSet`, `ReservationRefused`, `ReservationExpired`, `ThresholdCrossed`                                                                                                                                                                                                                                                                                                                                                             |
 | `AGENTS`        | all: `AgentCreated`, `AgentVersionPublished`, `AgentVersionActivated`, `AgentEnabled`, `AgentDisabled`                                                                                                                                                                                                                                                                                                                                  |
 | `PROMPTS`       | all: `PromptCreated`, `PromptVersionPublished`                                                                                                                                                                                                                                                                                                                                                                                          |
 
@@ -45,8 +45,9 @@ after `RetrySubtask`): the call and scheduling steps
 `orchestration.CallRequested`, `CallSettled`, `CallCancelRequested`,
 `SubtaskQueued`, `SubtaskWaiting`, `SubtaskStarted`, `SubtaskCompleted`;
 `conversation.AgentReplyPosted` (a copy of an orchestration event); the
-ledger steps `budget.FundsReserved`, `ReservationSettled`,
-`ReservationExpired`. They are trace data (M6), not decisions.
+ledger steps `budget.FundsReserved` and `ReservationSettled`. They are
+trace data (M6), not decisions. `budget.ReservationExpired` is an entry:
+it books the full reserved amount with no owner action.
 
 The service does not read `LLM`. The gitops grants allow it, for M6.
 
@@ -90,10 +91,13 @@ service cannot make an index on `audit`. At start it reads the indexes of
 there (the Job did not run).
 
 The service user cannot update, replace or delete an entry, drop
-`audit`, or make or drop an index on it. MongoDB refuses with code 13
-(`Unauthorized`). The integration test runs the gitops `init.js` (a copy
-in `test/integration/mongodb-init.js`) on a MongoDB with `--auth` and a
-key file, and tries each of these writes with the service user. The role
+`audit`, or make or drop an index on it. It also cannot write `audit`
+through an aggregation (`$merge`, `$out`) or replace it with a rename of
+another collection (`renameCollection` with `dropTarget`). MongoDB
+refuses with code 13 (`Unauthorized`). The integration test runs the
+gitops `init.js` (a copy in `test/integration/mongodb-init.js`) on a
+MongoDB with `--auth` and a key file, and tries each of these writes with
+the service user. The role
 needs no change in gitops for M3.
 
 ## Once for each source event
@@ -170,7 +174,10 @@ The order is `_id` descending: the order in which the service recorded
 the entries. `next` is the `before` value of the next page, or `null` when
 no older entry is there. A page is limited to 960 KiB of JSON, because
 api-gateway reads at most 1 MiB from an upstream, so a page can have fewer
-items than `limit`. A page always has at least one item when an older
+items than `limit`. The service reads the entries with a cursor, 10
+documents for each batch, and stops at the first entry that does not fit
+or at `limit`. So it does not load more documents than the page needs
+(at most one batch more). A page always has at least one item when an older
 entry is there. Use `next`, not `items.length < limit`, as the end rule.
 
 | Status | When                                                | Body                               |

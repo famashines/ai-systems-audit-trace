@@ -31,6 +31,7 @@ export const systemDecisions: ReadonlySet<RegisteredEvent["type"]> = new Set<
   "conversation.OwnerMessagePosted",
   "budget.BudgetSet",
   "budget.ReservationRefused",
+  "budget.ReservationExpired",
   "budget.ThresholdCrossed",
   "agents.AgentCreated",
   "agents.AgentVersionPublished",
@@ -52,15 +53,3 @@ export const toEntry = (event: RegisteredEvent, recordedAt: Date): AuditEntry =>
 });
 
 export const pageBytes = 960 * 1024;
-
-export function fitPage<T>(items: readonly T[], limitBytes = pageBytes): T[] {
-  let size = Buffer.byteLength(JSON.stringify({ items: [], next: null }));
-  const page: T[] = [];
-  for (const item of items) {
-    const bytes = Buffer.byteLength(JSON.stringify(item)) + (page.length > 0 ? 1 : 0);
-    if (page.length > 0 && size + bytes > limitBytes) break;
-    size += bytes;
-    page.push(item);
-  }
-  return page;
-}
