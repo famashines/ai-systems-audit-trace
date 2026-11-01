@@ -7,8 +7,8 @@ import {
   TracerProvider,
 } from "@opentelemetry/sdk-trace";
 import { MongoServerError, ObjectId, type Collection } from "mongodb";
-import { checkAuditIndex, readPage, recorder } from "../../src/application/audit.ts";
-import type { AuditEntry } from "../../src/domain/audit.ts";
+import { checkAuditIndex, readBatch, readPage, recorder } from "../../src/application/audit.ts";
+import { pageBytes, type AuditEntry } from "../../src/domain/audit.ts";
 import { event, owner, system, taskId } from "./fixtures.ts";
 
 const exporter = new InMemorySpanExporter();
@@ -96,30 +96,53 @@ test("start needs the unique eventId index on audit", async () => {
   );
 });
 
-const pageOf = (docs: object[], seen: { filter?: unknown; limit?: number }) =>
+interface Seen {
+  filter?: unknown;
+  limit?: number;
+  batch?: number;
+  pulled: number;
+}
+
+const pageOf = (docs: object[], seen: Seen) =>
   ({
     find: (filter: unknown) => {
       seen.filter = filter;
-      return {
-        sort: () => ({
-          limit: (limit: number) => {
-            seen.limit = limit;
-            return { toArray: () => Promise.resolve(docs.slice(0, limit)) };
-          },
-        }),
+      seen.pulled = 0;
+      const cursor = {
+        sort: () => cursor,
+        limit: (limit: number) => {
+          seen.limit = limit;
+          return cursor;
+        },
+        batchSize: (batch: number) => {
+          seen.batch = batch;
+          return cursor;
+        },
+        async *[Symbol.asyncIterator]() {
+          for (const doc of docs.slice(0, seen.limit)) {
+            seen.pulled += 1;
+            yield await Promise.resolve(doc);
+          }
+        },
       };
+      return cursor;
     },
   }) as unknown as Collection<AuditEntry>;
 
-test("readPage gives the next cursor only when more entries are there", async () => {
-  const docs = [3, 2, 1].map((n) => ({
+const docsOf = (count: number, payload?: object) =>
+  Array.from({ length: count }, (_, i) => count - i).map((n) => ({
     ...event("orchestration.RunPaused", owner, n),
+    ...(payload === undefined ? {} : { payload }),
     _id: new ObjectId(n.toString(16).padStart(24, "0")),
     recordedAt,
   }));
-  const seen: { filter?: unknown; limit?: number } = {};
+
+test("readPage gives the next cursor only when more entries are there", async () => {
+  const docs = docsOf(3);
+  const seen: Seen = { pulled: 0 };
   const first = await readPage(pageOf(docs, seen), { limit: 2 });
   assert.equal(seen.limit, 3);
+  assert.equal(seen.batch, readBatch);
   assert.deepEqual(seen.filter, {});
   assert.deepEqual(
     first.items.map((item) => item.id),
@@ -132,4 +155,23 @@ test("readPage gives the next cursor only when more entries are there", async ()
   assert.equal(last.items.length, 1);
   assert.equal(last.next, null);
   assert.deepEqual(await readPage(pageOf([], seen), { limit: 2 }), { items: [], next: null });
+});
+
+test("readPage stops reading at the first entry that passes the page bytes", async () => {
+  const docs = docsOf(50, { text: "x".repeat(400 * 1024) });
+  const seen: Seen = { pulled: 0 };
+  const page = await readPage(pageOf(docs, seen), { limit: 50 });
+  assert.equal(page.items.length, 2);
+  assert.equal(seen.pulled, 3);
+  assert.equal(page.next, docs[1]?._id.toHexString());
+  assert.ok(Buffer.byteLength(JSON.stringify(page)) <= pageBytes);
+});
+
+test("readPage keeps one entry that is larger than the page bytes", async () => {
+  const docs = docsOf(2, { text: "x".repeat(100) });
+  const seen: Seen = { pulled: 0 };
+  const page = await readPage(pageOf(docs, seen), { limit: 50 }, 10);
+  assert.equal(page.items.length, 1);
+  assert.equal(seen.pulled, 2);
+  assert.equal(page.next, docs[0]?._id.toHexString());
 });
