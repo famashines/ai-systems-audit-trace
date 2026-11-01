@@ -349,9 +349,16 @@ test("the audit-trace MongoDB user can insert and find in audit, but not change 
       .toArray(),
   );
   await unauthorized(() => processed.aggregate([{ $out: "audit" }]).toArray());
-  await unauthorized(() => processed.rename("audit", { dropTarget: true }));
   assert.deepEqual(await audit().findOne({ eventId: first.eventId }), before);
   assert.equal(await audit().countDocuments(), published.length);
   const indexes = await audit().indexes();
   assert.ok(indexes.some((index) => index.name === "eventId_1" && index.unique === true));
+});
+
+test("outcome only: a rename of processed onto audit with dropTarget fails, because the role has no rename action at all", async () => {
+  const processed = serviceDb.collection("processed");
+  assert.ok((await processed.countDocuments()) > 0);
+  await unauthorized(() => processed.rename("audit", { dropTarget: true }));
+  assert.equal(await audit().countDocuments(), published.length);
+  assert.ok((await rootDb.collection("processed").countDocuments()) > 0);
 });

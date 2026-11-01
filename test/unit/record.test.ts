@@ -175,3 +175,22 @@ test("readPage keeps one entry that is larger than the page bytes", async () => 
   assert.equal(seen.pulled, 2);
   assert.equal(page.next, docs[0]?._id.toHexString());
 });
+
+test("readPage keeps an entry that fits the page bytes exactly, and drops it at one byte less", async () => {
+  const docs = docsOf(3);
+  const seen: Seen = { pulled: 0 };
+  const all = await readPage(pageOf(docs, seen), { limit: 50 });
+  const [first, second] = all.items;
+  assert.ok(first && second);
+  const exact =
+    Buffer.byteLength(JSON.stringify({ items: [], next: null })) +
+    Buffer.byteLength(JSON.stringify(first)) +
+    Buffer.byteLength(JSON.stringify(second)) +
+    1;
+  const fit = await readPage(pageOf(docs, seen), { limit: 50 }, exact);
+  assert.deepEqual(fit.items, [first, second]);
+  assert.equal(fit.next, second.id);
+  const short = await readPage(pageOf(docs, seen), { limit: 50 }, exact - 1);
+  assert.deepEqual(short.items, [first]);
+  assert.equal(short.next, first.id);
+});

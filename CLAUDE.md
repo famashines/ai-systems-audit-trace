@@ -57,11 +57,14 @@ for all included files together:
   `--auth` and a key file, as gitops and the kit compose file do. Change
   the copy together with gitops. ESLint and Prettier skip it.
 - The CI job `gitops-init` compares the copy with `init.js` on gitops
-  `main`, and fails on a difference. `famashines/gitops` is private, so
-  the job reads it with the org secret `GITOPS_TOKEN` (as `GH_TOKEN`). A
-  pull request from a fork gets no secret, so the job skips the
-  comparison with a notice. A missing secret on this repo fails the job.
-  The same check by hand (no output means the same content):
+  `main` (`cmp`, no file content in the log), and fails on a difference.
+  `famashines/gitops` is private, so the job reads it with the org secret
+  `GITOPS_TOKEN` (as `GH_TOKEN`). That token can write to gitops (the
+  release jobs use it), so the job runs only on a push to `main`, never on
+  a pull request. An empty secret on `main` fails the job. A failed job
+  also stops the release of that commit. So before a PR that touches
+  MongoDB, and after each gitops change of `init.js`, do the same check by
+  hand (no output means the same content):
 
   ```sh
   gh api repos/famashines/gitops/contents/kubernetes/ai-systems/ai-systems-mongodb/base/init.js \
@@ -78,6 +81,9 @@ for all included files together:
   `start()`.
 - The CI job `integration` runs on `ubuntu-22.04`: `mongo:8.0.34` does not
   start on the kernel of `ubuntu-24.04`. See the kit `CLAUDE.md`.
+- The rename test checks only the outcome (code 13 and no change). The
+  role has no `renameCollectionSameDB` action at all, so it does not show
+  which privilege a rename onto `audit` with `dropTarget` would need.
 - `Collection.dropIndexes()` of the driver returns `false` on an error and
   does not throw. Use `dropIndex(name)` in a test that expects a refusal.
 

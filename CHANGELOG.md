@@ -11,8 +11,14 @@
   of `processed` onto `audit` with `dropTarget`. Each fails with code 13.
 - The CI job `gitops-init` fails when `test/integration/mongodb-init.js`
   is not the same as gitops `kubernetes/ai-systems/ai-systems-mongodb/base/init.js`
-  on `main`. It reads gitops with `GITOPS_TOKEN` and skips the comparison
-  on a pull request from a fork. `CLAUDE.md` has the same check by hand.
+  on `main`. It runs only on a push to `main`, because `GITOPS_TOKEN` can
+  write to gitops and must not be in a pull request run. It uses `cmp`
+  and prints no file content. `CLAUDE.md` has the same check by hand.
+- Unit tests for the exact byte fit of a page: an entry that fills the
+  page to the limit is kept, and at one byte less it starts the next
+  page.
+- The rename test is a separate test. Its name says that it checks only
+  the outcome.
 
 - New service (M3-06). Five durable consumers named `audit-trace`, on
   `ORCHESTRATION`, `CONVERSATION`, `BUDGET`, `AGENTS` and `PROMPTS`, with
