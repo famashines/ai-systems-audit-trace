@@ -62,6 +62,35 @@ jobs:
       - name: Integration tests
         run: npm run test:integration
 
+  gitops-init:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Skip the gitops comparison on a pull request from a fork
+        if: github.event.pull_request.head.repo.fork == true
+        run: echo "::notice::A pull request from a fork gets no GITOPS_TOKEN, so test/integration/mongodb-init.js is not compared with gitops. Do the manual check in CLAUDE.md."
+
+      - name: Compare test/integration/mongodb-init.js with gitops main
+        if: github.event.pull_request.head.repo.fork != true
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::The secret GITOPS_TOKEN is not available to this repo."
+            exit 1
+          fi
+          gh api "repos/famashines/gitops/contents/kubernetes/ai-systems/ai-systems-mongodb/base/init.js?ref=main" \
+            -H "Accept: application/vnd.github.raw" > "$RUNNER_TEMP/gitops-init.js"
+          if ! diff -u "$RUNNER_TEMP/gitops-init.js" test/integration/mongodb-init.js; then
+            echo "::error::test/integration/mongodb-init.js is not the same as gitops kubernetes/ai-systems/ai-systems-mongodb/base/init.js. Copy the gitops file."
+            exit 1
+          fi
+          echo "test/integration/mongodb-init.js is the same as gitops main."
+
   image:
     runs-on: ubuntu-24.04
     timeout-minutes: 15

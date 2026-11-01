@@ -56,10 +56,12 @@ for all included files together:
   as gitops `origin/main` `aaba642`). The test runs it in a MongoDB with
   `--auth` and a key file, as gitops and the kit compose file do. Change
   the copy together with gitops. ESLint and Prettier skip it.
-- CI does not compare the copy with gitops: `famashines/gitops` is
-  private, and the `GITHUB_TOKEN` of this repo cannot read it. Do this
-  check by hand before each PR that touches MongoDB, and after each gitops
-  change of `init.js`. No output means the same content:
+- The CI job `gitops-init` compares the copy with `init.js` on gitops
+  `main`, and fails on a difference. `famashines/gitops` is private, so
+  the job reads it with the org secret `GITOPS_TOKEN` (as `GH_TOKEN`). A
+  pull request from a fork gets no secret, so the job skips the
+  comparison with a notice. A missing secret on this repo fails the job.
+  The same check by hand (no output means the same content):
 
   ```sh
   gh api repos/famashines/gitops/contents/kubernetes/ai-systems/ai-systems-mongodb/base/init.js \

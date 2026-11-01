@@ -9,8 +9,10 @@
   does not load `limit + 1` documents first.
 - The role test also tries `$merge` and `$out` into `audit` and a rename
   of `processed` onto `audit` with `dropTarget`. Each fails with code 13.
-- `CLAUDE.md` has the manual check of `test/integration/mongodb-init.js`
-  against gitops. CI cannot read the private gitops repo.
+- The CI job `gitops-init` fails when `test/integration/mongodb-init.js`
+  is not the same as gitops `kubernetes/ai-systems/ai-systems-mongodb/base/init.js`
+  on `main`. It reads gitops with `GITOPS_TOKEN` and skips the comparison
+  on a pull request from a fork. `CLAUDE.md` has the same check by hand.
 
 - New service (M3-06). Five durable consumers named `audit-trace`, on
   `ORCHESTRATION`, `CONVERSATION`, `BUDGET`, `AGENTS` and `PROMPTS`, with
