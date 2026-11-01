@@ -31,6 +31,7 @@ export const systemDecisions: ReadonlySet<RegisteredEvent["type"]> = new Set<
   "conversation.OwnerMessagePosted",
   "budget.BudgetSet",
   "budget.ReservationRefused",
+  "budget.ReservationExpired",
   "budget.ThresholdCrossed",
   "agents.AgentCreated",
   "agents.AgentVersionPublished",

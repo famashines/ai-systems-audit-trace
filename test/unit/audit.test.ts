@@ -16,7 +16,6 @@ const notEntries = [
   "conversation.AgentReplyPosted",
   "budget.FundsReserved",
   "budget.ReservationSettled",
-  "budget.ReservationExpired",
 ];
 
 test("each event type of a read stream is an entry or is named as not an entry", () => {
