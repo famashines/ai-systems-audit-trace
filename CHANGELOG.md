@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Contracts v0.5.0. The consumer decodes a `CallRequested` with
+  `maxTokens` up to 32000 (on v0.4.1 it goes to the DLQ), and an entry
+  keeps `model` and `effort` of `TaskSubmitted` and `OwnerMessagePosted`
+  and `effort` of `CallRequested`. Deploy before api-gateway (contracts
+  CHANGELOG 0.5.0, step 2).
 - `budget.ReservationExpired` is an audit entry: it books money with no
   owner action.
 - `GET /internal/audit` reads with a cursor (batches of 10) and stops at

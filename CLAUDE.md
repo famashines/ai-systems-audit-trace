@@ -92,7 +92,7 @@ for all included files together:
 - Kit and contracts come from git tags. A new tag needs a new
   `allowScripts` entry with the commit of the tag
   (`npm install-scripts approve <package>`).
-- Kit v0.3.0 asks for contracts v0.1.0, but npm installs one copy, v0.4.1
+- Kit v0.3.0 asks for contracts v0.1.0, but npm installs one copy, v0.5.0
   (`npm ls @famashines/ai-systems-contracts`).
 - `mongodb`, `zod` and `@opentelemetry/api` have the exact versions that
   the kit pins, so there is one copy of each. A second copy of
