@@ -52,10 +52,20 @@ for all included files together:
 ## Integration tests
 
 - `test/integration/mongodb-init.js` is a copy of the gitops file
-  `kubernetes/ai-systems/ai-systems-mongodb/base/init.js` (gitops commit
-  `9785495`). The test runs it in a MongoDB with `--auth` and a key file,
-  as gitops and the kit compose file do. Change the copy together with
-  gitops. ESLint and Prettier skip it.
+  `kubernetes/ai-systems/ai-systems-mongodb/base/init.js` (same content
+  as gitops `origin/main` `aaba642`). The test runs it in a MongoDB with
+  `--auth` and a key file, as gitops and the kit compose file do. Change
+  the copy together with gitops. ESLint and Prettier skip it.
+- CI does not compare the copy with gitops: `famashines/gitops` is
+  private, and the `GITHUB_TOKEN` of this repo cannot read it. Do this
+  check by hand before each PR that touches MongoDB, and after each gitops
+  change of `init.js`. No output means the same content:
+
+  ```sh
+  gh api repos/famashines/gitops/contents/kubernetes/ai-systems/ai-systems-mongodb/base/init.js \
+    -H "Accept: application/vnd.github.raw" | diff - test/integration/mongodb-init.js
+  ```
+
 - The NATS config in the test has the grants of the user
   `ai-systems-audit-trace` and `ai-systems-admin` from gitops
   (`kubernetes/infrastructure/nats/values.yaml`). Change them together

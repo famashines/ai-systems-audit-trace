@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- `budget.ReservationExpired` is an audit entry: it books money with no
+  owner action.
+- `GET /internal/audit` reads with a cursor (batches of 10) and stops at
+  the first entry that passes the 960 KiB page limit or at `limit`. It
+  does not load `limit + 1` documents first.
+- The role test also tries `$merge` and `$out` into `audit` and a rename
+  of `processed` onto `audit` with `dropTarget`. Each fails with code 13.
+- `CLAUDE.md` has the manual check of `test/integration/mongodb-init.js`
+  against gitops. CI cannot read the private gitops repo.
+
 - New service (M3-06). Five durable consumers named `audit-trace`, on
   `ORCHESTRATION`, `CONVERSATION`, `BUDGET`, `AGENTS` and `PROMPTS`, with
   the full stream filters of the gitops grants. Contracts v0.4.1, kit
