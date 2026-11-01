@@ -19,7 +19,7 @@ owner --api-gateway (not yet)--GET /internal/audit--> audit-trace
 
 Architecture and reasons: `ai-systems-docs` (`ARCHITECTURE.md` 5 to 7 and
 11, ADR 0008, 0018, 0021, 0023). Schemas: `@famashines/ai-systems-contracts`
-v0.4.1. An audit entry is not a contract shape in M3. The entry is the
+v0.5.0. An audit entry is not a contract shape in M3. The entry is the
 source event, so the actor of each owner command event is the owner
 (contracts `README.md`, "Owner commands").
 

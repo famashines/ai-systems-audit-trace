@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { beforeEach, test } from "node:test";
 import { SpanStatusCode } from "@opentelemetry/api";
 import {
@@ -6,6 +7,7 @@ import {
   SimpleSpanProcessor,
   TracerProvider,
 } from "@opentelemetry/sdk-trace";
+import { parseEvent } from "@famashines/ai-systems-contracts";
 import { MongoServerError, ObjectId, type Collection } from "mongodb";
 import { checkAuditIndex, readBatch, readPage, recorder } from "../../src/application/audit.ts";
 import { pageBytes, type AuditEntry } from "../../src/domain/audit.ts";
@@ -45,6 +47,67 @@ test("an entry is inserted and its span has the correlation id", async () => {
     "ai_systems.audit.entry": true,
     "ai_systems.audit.inserted": true,
   });
+});
+
+test("an owner CallRequested with maxTokens 32000 and a new_task with a model and an effort keep those fields", async () => {
+  const inserted: AuditEntry[] = [];
+  const record = recorder(
+    fakeAudit((entry) => Promise.resolve(inserted.push(entry))),
+    tracer,
+    () => recordedAt,
+  );
+  const model = "anthropic/claude-opus-4.8";
+  const conversationId = "00000000-0000-4000-8000-000000000004";
+  const envelope = (type: string, streamId: string, payload: object) => ({
+    eventId: randomUUID(),
+    type,
+    schemaVersion: 1,
+    streamId,
+    version: 1,
+    occurredAt: "2026-11-01T10:00:00.000Z",
+    correlationId: taskId,
+    causationId: randomUUID(),
+    actor: owner,
+    payload,
+  });
+  const sources = [
+    parseEvent(
+      envelope("orchestration.CallRequested", `task-${taskId}`, {
+        taskId,
+        callId: "00000000-0000-4000-8000-000000000005",
+        agentId: "00000000-0000-4000-8000-000000000006",
+        agentVersion: 1,
+        messages: [{ role: "user", content: "Plan" }],
+        models: [model],
+        maxTokens: 32000,
+        maxDurationMs: 300000,
+        kind: "plan",
+        effort: "high",
+      }),
+    ),
+    parseEvent(
+      envelope("conversation.OwnerMessagePosted", `conversation-${conversationId}`, {
+        conversationId,
+        messageId: "00000000-0000-4000-8000-000000000007",
+        text: "Write a report",
+        intent: "new_task",
+        model,
+        effort: "high",
+      }),
+    ),
+  ];
+  for (const source of sources) await record(source);
+  assert.deepEqual(
+    inserted,
+    sources.map((source) => ({ ...source, recordedAt })),
+  );
+  assert.deepEqual(
+    inserted.map((entry) => entry.payload),
+    [
+      { ...sources[0]?.payload, maxTokens: 32000, models: [model], effort: "high" },
+      { ...sources[1]?.payload, model, effort: "high" },
+    ],
+  );
 });
 
 test("an event that is not an entry is not inserted, and it has a span", async () => {
